@@ -3,81 +3,69 @@
 #define Max_Dist 100.0
 #define Surf_Dist 0.01 
 
-float SphereSDF(vec3 p , float r )
+float sdSphere( vec3 p, float s )
 {
-    return length(p) - r ;
+    return length(p)-s;
 }
 
-float PlaneSDF( vec3 p )
+float map( in vec3 pos )
 {
-    return p.y;
+    return sdSphere( pos - vec3( 0.0,0.0, 0.0 ), 1.0 );
 }
-float GetDist(vec3 p)
+
+vec3 castRay( in vec3 ro, in vec3 rd )
 {
-    vec4 s = vec4(0.0,1.0,6.0,1.0);
-    float sphereDist =  SphereSDF( p - s.xyz , s.w );
-    float planeDist = PlaneSDF(p);
-    
-    float d = min(sphereDist , planeDist);
-    return d ;
-    
-}
-float RayMarch( vec3 ro ,vec3 rd )
-{
-    float Do = 0.0 ;
-    
-    for(int i = 0 ; i < Max_Step ; i++)
+    vec3  res = vec3(0.0,0.0,0.0);
+    float t = 0.0 ;
+    for( int i = 0 ; i < Max_Step && t < Max_Dist ; i++ )
     {
-        vec3 p = ro + Do * rd ;
-        float ds = GetDist(p);
-        Do += ds ;
-        if(Do > Max_Dist || ds < Surf_Dist ) break ;
+        float h = map( ro+rd*t );
+        if( abs(h)<( Surf_Dist * t ))
+        { 
+            res = vec3(t,h,1.0); 
+            break;
+         }
+         t += h;
     }
-    return Do; 
+    return res;
 }
 
-vec3 GetNormal(vec3 p )
-{
-    float d = GetDist(p);
-    vec2 e = vec2(0.01, 0 );
-    vec3 n = d - vec3(
-                    GetDist(p-e.xyy),
-                    GetDist(p-e.yxy),
-                    GetDist(p-e.yyx)
-                    );
-    
-    return normalize(n);
-    
+vec3 render( in vec3 ro, in vec3 rd )
+{ 
+    vec3 res = castRay(ro,rd) ;
+    return vec3(res.x);
 }
-float GetLight(vec3 p )
+
+
+mat3 setCamera( in vec3 ro, in vec3 ta, float cr )
 {
-    vec3 lightPos = vec3(0.0,8.0,0.0);
-    lightPos.xz += vec2(sin(iTime),cos(iTime)) * 10.0 ;
-    vec3 l = normalize(lightPos - p );
-    vec3 n = GetNormal(p);
-    float diffuse = clamp (dot(n,l),0.0,1.0) ;
-    
-    float d = RayMarch(p + n * Surf_Dist * 2.0 ,l );
-    if( d < length(lightPos-p)) diffuse *= 0.4 ;
-    return  diffuse ;
+	vec3 cw = normalize(ta-ro);
+	vec3 cp = vec3(sin(cr), cos(cr),0.0);
+	vec3 cu = normalize( cross(cw,cp) );
+	vec3 cv =          ( cross(cu,cw) );
+    return mat3( cu, cv, cw );
 }
 
 void main() {
-  float time = iGlobalTime * 1.0;
+    float time = iGlobalTime * 1.0;
+    
+    vec2 mo = iMouse.xy/iResolution.xy;
+    // camera	
+    vec3 ro = vec3( 4.6*cos(0.1*time + 6.0*mo.x), 1.0 + 2.0*mo.y, 0.5 + 4.6*sin(0.1*time + 6.0*mo.x) );
+    vec3 ta = vec3( -0.5, -0.4, 0.5 );
+    // camera-to-world transformation
+    mat3 ca = setCamera( ro, ta, 0.0 );
 
-    vec2 uv = (gl_FragCoord.xy - iResolution.xy * 0.5 ) / iResolution.y;
-    vec3 col = vec3(uv,1.0);
+    vec3 tot = vec3(0.0);
+	vec2 p = (-iResolution.xy + 2.0*gl_FragCoord.xy )/iResolution.y;
+     // ray direction
+    vec3 rd = ca * normalize( vec3(p.xy,2.0) );
+    // render	
+    vec3 col = render( ro, rd );
+
+    tot += col;
     
-    vec3 ro = vec3(0.0,1.0,0.0);
-    vec3 rd = normalize( vec3 ( uv.x , uv.y , 1.0 ));
-    
-    float d = RayMarch(ro,rd);
-    
-    vec3 p = ro + rd * d ;
-    float diff = GetLight( p ) ;
-    
-    col = vec3(0.4,0.6,0.8) * diff ;
-    //col = GetNormal(p);
-    gl_FragColor = vec4(col,1.0);
+	gl_FragColor = vec4( tot, 1.0 );
+
 
 }
