@@ -48,7 +48,7 @@ vec3 ro = vec3( cos(mo.x), mo.y, sin(mo.x) );
 ``` 
 <div align=center> 
 
-![SDF view](mdtexture/sdf_sphere.jpg)
+![SDF view](mdtexture/SDF_sphere.jpg)
 
 </div>
 
@@ -176,6 +176,6 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
 下一步，我们进行光照渲染和影子等渲染
 <div align=center> 
 
-![](mdtexture/sdfview.jpg)
+![](mdtexture/SDFview.jpg)
 
 </div>
