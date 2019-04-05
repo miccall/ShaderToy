@@ -44,7 +44,7 @@ vec3 calcNormal( in vec3 pos )
 
     vec3 res = castRay(ro,rd) ;
     vec3 pos = ro + res.x * rd;
-    vec3 nor = (m<1.5) ? vec3(0.0,1.0,0.0) : calcNormal( pos );
+    vec3 normal = calcNormal( pos );
 
 ``` 
 

@@ -42,11 +42,28 @@ vec3 castRay( in vec3 ro, in vec3 rd )
 
 vec3 render( in vec3 ro, in vec3 rd )
 { 
+    vec3 col = vec3(0, 0, 0);
     vec3 res = castRay(ro,rd) ;
     vec3 pos = res.x * rd + ro ;
-    vec3 normal = calcNormal( pos );
+    vec3 normal = calcNormal(pos);
+    vec3 ref = reflect( rd, normal );
+    col =  sin( vec3(0.9,0.1,0.1));
     
-    return normal ;
+    vec3  lig = normalize( vec3(-0.4, 0.7, -0.6) );
+    // Half vector 
+    vec3  hal = normalize( lig-rd );
+    // ambient 
+    float amb = clamp( 0.5+0.5*normal.y, 0.0, 1.0 );
+    // back 
+    float bac = clamp( dot( normal, normalize(vec3(-lig.x,0.0,-lig.z))), 0.0, 1.0 )*clamp( 1.0-pos.y,0.0,1.0);
+    // cube map rel
+    float dom = smoothstep( -0.2, 0.2, ref.y );
+    // rim 
+    float fre = pow( clamp(1.0+dot(normal,rd),0.0,1.0), 2.0 );
+    // diffuse 
+    float dif = clamp( dot( normal, lig ), 0.0, 1.0 );
+    
+    return dif * col ;
 }
 
 
