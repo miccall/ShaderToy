@@ -48,6 +48,34 @@ vec3 calcNormal( in vec3 pos )
 
 ``` 
 
+如果球的位置不对，那么我们也把球更新一下位置 
+
+``` cpp
+
+float map( in vec3 pos )
+{
+    return sdSphere( pos-vec3( 0.0,0.25, 0.0), 0.25 );
+}
+
+``` 
+
+我们可以调整一下摄像机
+
+``` cpp
+    
+    vec2 mo = iMouse.xy/iResolution.xy;
+    // camera	
+    vec3 ro = vec3( 
+        0.7*cos(time ), 
+        1.0+2.0*0.01, 
+        0.7*sin(time )
+    );
+    vec3 ta = vec3( 0.0,0.25, 0.0);
+    // camera-to-world transformation
+    mat3 ca = setCamera( ro, ta, 0.0 );
+    
+``` 
+
 ## diffuse
 
 既然我们法线也有了，我们现在就可以模拟一个灯光，然后做一个漫反射材质了 ：
@@ -123,6 +151,7 @@ vec3 render( in vec3 ro, in vec3 rd )
 
 ``` cpp
 
+    float tmax = Max_Dist ;
     float tp1 = (0.0-ro.y)/rd.y;
     if( tp1>0.0 )
     {
@@ -132,14 +161,119 @@ vec3 render( in vec3 ro, in vec3 rd )
 
 ```
 
-这样会影响球的位置，那么我们也把球更新一下位置 
+<div align=center> 
 
+![normal vector preview](mdtexture/plane.png)
+
+</div>
+
+## 材质分离 
+
+我们需要一种方法来区分不同的问题，地板还是sphere？
+所以我们把map函数改一下，我们增加一个通道来区分他们
 ``` cpp
-
-float map( in vec3 pos )
+vec2 map( in vec3 pos )
 {
-    return sdSphere( pos-vec3( 0.0,0.25, 0.0), 0.25 );
+    return vec2(sdSphere(  pos-vec3( 0.0,0.25, 0.0), 0.25 ),40) ;
 }
+``` 
+第二个通道随便指定一个值就行 
+
+此外我们就很多地方需要修改一下 
+calcNormal函数中返回指定x通道
+castRay函数中，判断指定x通道，res指定y通道
+``` cpp
+    for( int i = 0 ; i < Max_Step && t < Max_Dist ; i++ )
+    {
+        vec2 h = map( ro+rd*t );
+        if( abs(h.x)<( Surf_Dist * t ))
+        { 
+            res = vec3(t,h.y,1.0); 
+            break;
+         }
+         t += h.x;
+    }
+    return res;
 
 ``` 
 
+
+这样我们就可以根据res的y通道来区分材质了
+
+``` cpp
+
+vec3 render( in vec3 ro, in vec3 rd )
+{ 
+    vec3 col = vec3(0, 0, 0);
+    vec3 res = castRay(ro,rd) ;
+    float m = res.y;
+    vec3 pos = res.x * rd + ro ;
+    vec3 normal = calcNormal(pos);
+    vec3 ref = reflect( rd, normal );
+    // light dir 
+    vec3  lig = normalize( vec3(-0.4, 0.7, -0.6) );
+    // Half vector 
+    vec3  hal = normalize( lig-rd );
+    // ambient 
+    float amb = clamp( 0.5+0.5*normal.y, 0.0, 1.0 );
+    // back 
+    float bac = clamp( dot( normal, normalize(vec3(-lig.x,0.0,-lig.z))), 0.0, 1.0 )*clamp( 1.0-pos.y,0.0,1.0);
+    // cube map rel
+    float dom = smoothstep( -0.2, 0.2, ref.y );
+    // rim 
+    float fre = pow( clamp(1.0+dot(normal,rd),0.0,1.0), 2.0 );
+    // diffuse 
+    float dif = clamp( dot( normal, lig ), 0.0, 1.0 );
+
+    if( m>-0.5 ){
+    
+        if(m<1.5)
+        	return vec3(1.0,1.0,1.0);
+    	col =  sin( vec3(0.9,0.1,0.1));
+    
+    }
+    return col ;
+}
+
+``` 
+<div align=center> 
+
+![normal vector preview](mdtexture/materialstep.png)
+
+</div>
+
+
+## plane Checkboard
+同样来自iq大神的文章 
+[checkerfiltering](http://iquilezles.org/www/articles/checkerfiltering/checkerfiltering.htm)
+``` cpp
+// 
+float checkersGradBox( in vec2 p )
+{
+    // filter kernel
+    vec2 w = fwidth(p) + 0.001;
+    // analytical integral (box filter)
+    vec2 i = 2.0*(abs(fract((p-0.5*w)*0.5)-0.5)-abs(fract((p+0.5*w)*0.5)-0.5))/w;
+    // xor pattern
+    return 0.5 - 0.5*i.x*i.y;                  
+}
+
+```
+
+在地板选择材质中调用他 ：
+``` cpp
+
+        if(m<1.5)
+        {  
+            float f = checkersGradBox( 5.0*pos.xz );
+            col = 0.3 + f*vec3(0.1);
+            return col ;
+        }
+
+```
+
+<div align=center> 
+
+![normal vector preview](mdtexture/planeCheckBoard.png)
+
+</div>
