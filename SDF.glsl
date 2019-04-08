@@ -22,7 +22,39 @@ vec3 calcNormal( in vec3 pos )
 					  e.xxx*map( pos + e.xxx ).x);
 }
 
+float calcAO( in vec3 pos, in vec3 nor )
+{
+	float occ = 0.0;
+    float sca = 1.0;
+    for( int i=0; i<5; i++ )
+    {
+        float hr = 0.01 + 0.12*float(i)/4.0;
+        vec3 aopos =  nor * hr + pos;
+        float dd = map( aopos ).x;
+        occ += -(dd-hr)*sca;
+        sca *= 0.95;
+    }
+    return clamp( 1.0 - 3.0*occ, 0.0, 1.0 ) * (0.5+0.5*nor.y);
+}
 
+const float maxHei = 0.8;
+#define ZERO (min(iFrame,0))
+float calcSoftshadow( in vec3 ro, in vec3 rd, in float mint, in float tmax )
+{
+    // bounding volume
+    float tp = (maxHei-ro.y)/rd.y; if( tp>0.0 ) tmax = min( tmax, tp );
+
+    float res = 1.0;
+    float t = mint;
+    for( int i=0; i<16; i++ )
+    {
+		float h = map( ro + rd*t ).x;
+        res = min( res, 8.0*h/t );
+        t += clamp( h, 0.02, 0.10 );
+        if( res<0.005 || t>tmax ) break;
+    }
+    return clamp( res, 0.0, 1.0 );
+}
 
 //res : (x) distance -t  (y) material type - h.y  (z) not-use                                        
 vec3 castRay( in vec3 ro, in vec3 rd )
@@ -76,10 +108,11 @@ vec3 render( in vec3 ro, in vec3 rd )
         {  
             float f = checkersGradBox( 5.0*pos.xz );
             col = 0.3 + f*vec3(0.1);
-            return col ;
         }
         vec3 normal = calcNormal(pos);
         vec3 ref = reflect( rd, normal );
+
+        float occ = calcAO( pos, normal );
         // light dir 
         vec3  lig = normalize( vec3(-0.4, 0.7, -0.6) );
         // Half vector 
@@ -94,10 +127,21 @@ vec3 render( in vec3 ro, in vec3 rd )
         float fre = pow( clamp(1.0+dot(normal,rd),0.0,1.0), 2.0 );
         // diffuse 
         float dif = clamp( dot( normal, lig ), 0.0, 1.0 );
-        col = col * dif ;
+        //
+        float spe = pow( clamp( dot( normal, hal ), 0.0, 1.0 ),16.0) * 0.1;
+		float shadow = calcSoftshadow( pos, lig, 0.02, 2.5 );
+        dif *= shadow;
+        vec3 lin = vec3(0.0);
+        lin += 1.40*dif*vec3(1.00,0.80,0.55);
+        lin += 0.20*amb*vec3(0.40,0.60,1.00)*occ;
+        lin += 0.40*dom*vec3(0.40,0.60,1.00)*occ;
+        lin += 0.50*bac*vec3(0.25,0.25,0.25)*occ;
+        lin += 0.25*fre*vec3(1.00,1.00,1.00)*occ;
+        col = col*lin;
+		col += 9.00*spe*vec3(1.00,0.90,0.70);
+    	col = mix( col, vec3(0.8,0.9,1.0), 1.0-exp( -0.0002*t*t*t ) );
     }
-
-    return col  ;
+    return vec3( clamp(col,0.0,1.0) );
 }
 
 
@@ -116,9 +160,11 @@ void main() {
     vec2 mo = iMouse.xy/iResolution.xy;
     // camera	
     vec3 ro = vec3( 
-        0.7*cos(time)-1.0, 
-        1.0+2.0*0.001, 
-        0.7*sin(time )-1.0
+        
+        1.5*cos(0.1*time + 6.0*mo.x),
+        1.0 + 2.0*mo.y, 
+        1.5*sin(0.1*time + 6.0*mo.x) 
+    
     );
     // target 
     vec3 ta = vec3( 0.0,0.25, 0.0);
@@ -130,6 +176,7 @@ void main() {
     vec3 rd = ca * normalize( vec3(p.xy,2.0) );
     // render	
     vec3 col = render( ro, rd );
+    col = pow( col, vec3(0.4545) );
     tot += col;
 	gl_FragColor = vec4( tot, 1.0 );
 }
