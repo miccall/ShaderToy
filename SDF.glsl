@@ -2,7 +2,7 @@
 #define Max_Step  250 
 #define Max_Dist 100.0
 #define Surf_Dist 0.000001 
-
+#define AA 3   // make this 2 or 3 for antialiasing
 float sdSphere( vec3 p, float s )
 {
     return length(p)-s;
@@ -35,6 +35,16 @@ float calcAO( in vec3 pos, in vec3 nor )
         sca *= 0.95;
     }
     return clamp( 1.0 - 3.0*occ, 0.0, 1.0 ) * (0.5+0.5*nor.y);
+}
+
+float checkersGradBox( in vec2 p )
+{
+    // filter kernel
+    vec2 w = fwidth(p) + 0.001;
+    // analytical integral (box filter)
+    vec2 i = 2.0*(abs(fract((p-0.5*w)*0.5)-0.5)-abs(fract((p+0.5*w)*0.5)-0.5))/w;
+    // xor pattern
+    return 0.5 - 0.5*i.x*i.y;                  
 }
 
 const float maxHei = 0.8;
@@ -82,66 +92,57 @@ vec3 castRay( in vec3 ro, in vec3 rd )
     return res;
 }
 
-float checkersGradBox( in vec2 p )
-{
-    // filter kernel
-    vec2 w = fwidth(p) + 0.001;
-    // analytical integral (box filter)
-    vec2 i = 2.0*(abs(fract((p-0.5*w)*0.5)-0.5)-abs(fract((p+0.5*w)*0.5)-0.5))/w;
-    // xor pattern
-    return 0.5 - 0.5*i.x*i.y;                  
-}
-
 vec3 render( in vec3 ro, in vec3 rd )
 { 
-    vec3 col = vec3(0, 0, 0);
-    col =  sin( vec3(0.9,0.1,0.1));
-    vec3 res = castRay(ro,rd) ;
+    vec3 col = vec3(0.7, 0.9, 1.0) + rd.y * 0.8 ;
+    vec3 res = castRay(ro,rd);
     float t = res.x;
-    float m = res.y;
-    vec3 pos = t * rd + ro ;
-    
-
-    if( m>-0.5 ){
+	float m = res.y;
+    if( m>-0.5 )
+    {
+        vec3 pos = ro + t*rd;
+        vec3 nor = (m<1.5) ? vec3(0.0,1.0,0.0) : calcNormal( pos );
+        vec3 ref = reflect( rd, nor );
         
-        if(m<1.5)
-        {  
+        // material        
+		col = 0.45 + 0.35*sin( vec3(0.05,0.08,0.10)*(m-1.0) );
+        if( m<1.5 )
+        {
+            
             float f = checkersGradBox( 5.0*pos.xz );
             col = 0.3 + f*vec3(0.1);
         }
-        vec3 normal = calcNormal(pos);
-        vec3 ref = reflect( rd, normal );
 
-        float occ = calcAO( pos, normal );
-        // light dir 
-        vec3  lig = normalize( vec3(-0.4, 0.7, -0.6) );
-        // Half vector 
+        // lighting
+        float occ = calcAO( pos, nor );
+		vec3  lig = normalize( vec3(-0.4, 0.7, -0.6) );
         vec3  hal = normalize( lig-rd );
-        // ambient 
-        float amb = clamp( 0.5+0.5*normal.y, 0.0, 1.0 );
-        // back 
-        float bac = clamp( dot( normal, normalize(vec3(-lig.x,0.0,-lig.z))), 0.0, 1.0 )*clamp( 1.0-pos.y,0.0,1.0);
-        // cube map rel
+		float amb = clamp( 0.5+0.5*nor.y, 0.0, 1.0 );
+        float dif = clamp( dot( nor, lig ), 0.0, 1.0 );
+        float bac = clamp( dot( nor, normalize(vec3(-lig.x,0.0,-lig.z))), 0.0, 1.0 )*clamp( 1.0-pos.y,0.0,1.0);
         float dom = smoothstep( -0.2, 0.2, ref.y );
-        // rim 
-        float fre = pow( clamp(1.0+dot(normal,rd),0.0,1.0), 2.0 );
-        // diffuse 
-        float dif = clamp( dot( normal, lig ), 0.0, 1.0 );
-        //
-        float spe = pow( clamp( dot( normal, hal ), 0.0, 1.0 ),16.0) * 0.1;
-		float shadow = calcSoftshadow( pos, lig, 0.02, 2.5 );
-        dif *= shadow;
-        vec3 lin = vec3(0.0);
+        float fre = pow( clamp(1.0+dot(nor,rd),0.0,1.0), 2.0 );
+        
+        dif *= calcSoftshadow( pos, lig, 0.02, 2.5 );
+        dom *= calcSoftshadow( pos, ref, 0.02, 2.5 );
+
+		float spe = pow( clamp( dot( nor, hal ), 0.0, 1.0 ),16.0)*
+                    dif *
+                    (0.04 + 0.96*pow( clamp(1.0+dot(hal,rd),0.0,1.0), 5.0 ));
+
+		vec3 lin = vec3(0.0);
         lin += 1.40*dif*vec3(1.00,0.80,0.55);
         lin += 0.20*amb*vec3(0.40,0.60,1.00)*occ;
         lin += 0.40*dom*vec3(0.40,0.60,1.00)*occ;
         lin += 0.50*bac*vec3(0.25,0.25,0.25)*occ;
         lin += 0.25*fre*vec3(1.00,1.00,1.00)*occ;
-        col = col*lin;
+		col = col*lin;
 		col += 9.00*spe*vec3(1.00,0.90,0.70);
+
     	col = mix( col, vec3(0.8,0.9,1.0), 1.0-exp( -0.0002*t*t*t ) );
     }
-    return vec3( clamp(col,0.0,1.0) );
+
+	return vec3( clamp(col,0.0,1.0) );
 }
 
 
@@ -155,28 +156,44 @@ mat3 setCamera( in vec3 ro, in vec3 ta, float cr )
 }
 
 void main() {
-    float time = iGlobalTime * 1.0;
     
+    float time = iGlobalTime * 1.0;  
     vec2 mo = iMouse.xy/iResolution.xy;
     // camera	
     vec3 ro = vec3( 
-        
         1.5*cos(0.1*time + 6.0*mo.x),
-        1.0 + 2.0*mo.y, 
+        0.4 + 1.0*mo.y, 
         1.5*sin(0.1*time + 6.0*mo.x) 
-    
     );
     // target 
     vec3 ta = vec3( 0.0,0.25, 0.0);
     // camera-to-world transformation
     mat3 ca = setCamera( ro, ta, 0.0 );
     vec3 tot = vec3(0.0);
-	vec2 p = (-iResolution.xy + 2.0*gl_FragCoord.xy )/iResolution.y;
-     // ray direction
-    vec3 rd = ca * normalize( vec3(p.xy,2.0) );
-    // render	
-    vec3 col = render( ro, rd );
-    col = pow( col, vec3(0.4545) );
-    tot += col;
+#if AA>1
+    for( int m=ZERO; m<AA; m++ )
+    for( int n=ZERO; n<AA; n++ )
+    {
+        // pixel coordinates
+        vec2 o = vec2(float(m),float(n)) / float(AA) - 0.5;
+        vec2 p = (-iResolution.xy + 2.0*(gl_FragCoord.xy + o))/iResolution.y;
+#else    
+        vec2 p = (-iResolution.xy + 2.0*gl_FragCoord.xy )/iResolution.y;
+#endif
+
+        // ray direction
+        vec3 rd = ca * normalize( vec3(p.xy,2.0) );
+
+        // render	
+        vec3 col = render( ro, rd );
+
+		// gamma
+        col = pow( col, vec3(0.4545) );
+
+        tot += col;
+#if AA>1
+    }
+    tot /= float(AA*AA);
+#endif
 	gl_FragColor = vec4( tot, 1.0 );
 }
