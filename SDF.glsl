@@ -8,9 +8,57 @@ float sdSphere( vec3 p, float s )
     return length(p)-s;
 }
 
+float sdBox( vec3 p, vec3 b )
+{
+    vec3 d = abs(p) - b;
+    return min(max(d.x,max(d.y,d.z)),0.0) + length(max(d,0.0));
+}
+
+float sdEllipsoid( in vec3 p, in vec3 r ) // approximated
+{
+    float k0 = length(p/r);
+    float k1 = length(p/(r*r));
+    return k0*(k0-1.0)/k1;    
+}
+
+float sdTorus( vec3 p, vec2 t )
+{
+    return length( vec2(length(p.xz)-t.x,p.y) )-t.y;
+}
+float sdHexPrism( vec3 p, vec2 h )
+{
+    vec3 q = abs(p);
+
+    const vec3 k = vec3(-0.8660254, 0.5, 0.57735);
+    p = abs(p);
+    p.xy -= 2.0*min(dot(k.xy, p.xy), 0.0)*k.xy;
+    vec2 d = vec2(
+       length(p.xy - vec2(clamp(p.x, -k.z*h.x, k.z*h.x), h.x))*sign(p.y - h.x),
+       p.z-h.y );
+    return min(max(d.x,d.y),0.0) + length(max(d,0.0));
+}
+
+float sdCapsule( vec3 p, vec3 a, vec3 b, float r )
+{
+	vec3 pa = p-a, ba = b-a;
+	float h = clamp( dot(pa,ba)/dot(ba,ba), 0.0, 1.0 );
+	return length( pa - ba*h ) - r;
+}
+
+
 vec2 map( in vec3 pos )
 {
-    return vec2( sdSphere(  pos-vec3( 0.0,0.25, 0.0), 0.25 ),40 ) ;
+    float final = 1000000000.0 ;
+    final = min(final,sdSphere( pos-vec3( 0.5,0.1, 0.0),0.1 ));
+    final = min(final,sdBox(  pos - vec3( 0.0,0.1, 0.0), vec3(0.1,0.1,0.1) ));
+    final = min(final, sdEllipsoid(pos-vec3(-0.5,0.1, 0.0), vec3(0.1, 0.025, 0.1)));
+    final = min(final, sdTorus(pos-vec3(0.5,0.1, -0.5), vec2(0.1, 0.025)));
+    final = min(final, sdHexPrism(pos-vec3(0.5,0.1, 0.5), vec2(0.1, 0.025)));
+    final = min(final, sdCapsule(pos-vec3(-0.5,0.1, 0.5), vec3(-0.1,0.05,-0.1), vec3(0.1,0.1,0.1), 0.05));
+
+
+
+    return vec2( final, 40 ) ;
 } 
 
 vec3 calcNormal( in vec3 pos )
@@ -170,7 +218,7 @@ void main() {
     // camera-to-world transformation
     mat3 ca = setCamera( ro, ta, 0.0 );
     vec3 tot = vec3(0.0);
-#if AA>1
+#if AA > 1
     for( int m=ZERO; m<AA; m++ )
     for( int n=ZERO; n<AA; n++ )
     {
