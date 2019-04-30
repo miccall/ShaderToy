@@ -55,9 +55,6 @@ vec2 map( in vec3 pos )
     final = min(final, sdTorus(pos-vec3(0.5,0.1, -0.5), vec2(0.1, 0.025)));
     final = min(final, sdHexPrism(pos-vec3(0.5,0.1, 0.5), vec2(0.1, 0.025)));
     final = min(final, sdCapsule(pos-vec3(-0.5,0.1, 0.5), vec3(-0.1,0.05,-0.1), vec3(0.1,0.1,0.1), 0.05));
-
-
-
     return vec2( final, 40 ) ;
 } 
 
@@ -203,9 +200,33 @@ mat3 setCamera( in vec3 ro, in vec3 ta, float cr )
     return mat3( cu, cv, cw );
 }
 
+vec2 CRTCurveUV( vec2 uv )
+{
+    uv = uv * 2.0 - 1.0;
+    vec2 offset = abs( uv.yx ) / vec2( 6.0, 4.0 );
+    uv = uv + uv * offset * offset;
+    uv = uv * 0.5 + 0.5;
+    return uv;
+}
+
+void DrawVignette( inout vec3 color, vec2 uv )
+{    
+    float vignette = uv.x * uv.y * ( 1.0 - uv.x ) * ( 1.0 - uv.y );
+    vignette = clamp( pow( 16.0 * vignette, 0.3 ), 0.0, 1.0 );
+    color *= vignette;
+}
+
+void DrawScanline( inout vec3 color, vec2 uv )
+{
+    float scanline 	= clamp( 0.95 + 0.05 * cos( 3.14 * ( uv.y + 0.008 * iTime ) * 240.0 * 1.0 ), 0.0, 1.0 );
+    float grille 	= 0.85 + 0.15 * clamp( 1.5 * cos( 3.14 * uv.x * 640.0 * 1.0 ), 0.0, 1.0 );    
+    color *= scanline * grille * 1.2;
+}
+
 void main() {
     
     float time = iGlobalTime * 1.0;  
+    vec2 uv    = gl_FragCoord.xy / iResolution.xy;
     vec2 mo = iMouse.xy/iResolution.xy;
     // camera	
     vec3 ro = vec3( 
@@ -243,5 +264,14 @@ void main() {
     }
     tot /= float(AA*AA);
 #endif
+
+    vec2 crtUV = CRTCurveUV( uv );
+    if ( crtUV.x < 0.0 || crtUV.x > 1.0 || crtUV.y < 0.0 || crtUV.y > 1.0 )
+    {
+        tot = vec3( 0.0, 0.0, 0.0 );
+    }
+    
+    DrawVignette(tot, crtUV );
+    DrawScanline(tot,uv);
 	gl_FragColor = vec4( tot, 1.0 );
 }
