@@ -265,6 +265,7 @@ void main() {
     tot /= float(AA*AA);
 #endif
 
+    /*
     vec2 crtUV = CRTCurveUV( uv );
     if ( crtUV.x < 0.0 || crtUV.x > 1.0 || crtUV.y < 0.0 || crtUV.y > 1.0 )
     {
@@ -273,5 +274,6 @@ void main() {
     
     DrawVignette(tot, crtUV );
     DrawScanline(tot,uv);
-	gl_FragColor = vec4( tot, 1.0 );
+	*/
+    gl_FragColor = vec4( tot, 1.0 );
 }

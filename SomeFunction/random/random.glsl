@@ -15,7 +15,7 @@ float random_1( vec2 p )
         23.14069263277926, // e^pi (Gelfond's constant)
          2.665144142690225 // 2^sqrt(2) (Gelfondâ€“Schneider constant)
     );
-    return fract( cos( mod( 12345678., 256. * dot(p,r) ) ) );
+    return fract( cos( mod( 12345678.0, 512.0 * dot(p,r) ) ) );
 }
 
 float random_2(vec2 p)
@@ -98,14 +98,15 @@ float noise( in vec2 p ) {
                      hash( i + vec2(1.0,1.0) ), u.x), u.y);
 }
 
+
 void main() {
   float time = iGlobalTime * 1.0;
   vec2 uv = (gl_FragCoord.xy / iResolution.xx );
   float n = 1.0 ;
-  // n = random_linear(uv);
-  // n = random_1(uv);
-  // n = random_2(uv);
-  // n = snoise(uv);
+  //n = random_linear(uv);
+  //n = random_1(uv);
+  //n = random_2(uv);
+  //n = snoise(uv);
   // n = random_sony(uv);
   // n =  noise(uv);
   // n = hash(uv);
