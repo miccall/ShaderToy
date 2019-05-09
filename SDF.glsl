@@ -1,48 +1,20 @@
 
+#include glsl://./SomeFunction/SDFs.glsl
+
 #define Max_Step  250 
 #define Max_Dist 100.0
 #define Surf_Dist 0.000001 
 #define AA 3   // make this 2 or 3 for antialiasing
-float sdSphere( vec3 p, float s )
-{
-    return length(p)-s;
-}
 
-float sdBox( vec3 p, vec3 b )
-{
-    vec3 d = abs(p) - b;
-    return min(max(d.x,max(d.y,d.z)),0.0) + length(max(d,0.0));
-}
 
-float sdEllipsoid( in vec3 p, in vec3 r ) // approximated
+float checkersGradBox( in vec2 p )
 {
-    float k0 = length(p/r);
-    float k1 = length(p/(r*r));
-    return k0*(k0-1.0)/k1;    
-}
-
-float sdTorus( vec3 p, vec2 t )
-{
-    return length( vec2(length(p.xz)-t.x,p.y) )-t.y;
-}
-float sdHexPrism( vec3 p, vec2 h )
-{
-    vec3 q = abs(p);
-
-    const vec3 k = vec3(-0.8660254, 0.5, 0.57735);
-    p = abs(p);
-    p.xy -= 2.0*min(dot(k.xy, p.xy), 0.0)*k.xy;
-    vec2 d = vec2(
-       length(p.xy - vec2(clamp(p.x, -k.z*h.x, k.z*h.x), h.x))*sign(p.y - h.x),
-       p.z-h.y );
-    return min(max(d.x,d.y),0.0) + length(max(d,0.0));
-}
-
-float sdCapsule( vec3 p, vec3 a, vec3 b, float r )
-{
-	vec3 pa = p-a, ba = b-a;
-	float h = clamp( dot(pa,ba)/dot(ba,ba), 0.0, 1.0 );
-	return length( pa - ba*h ) - r;
+    // filter kernel
+    vec2 w = fwidth(p) + 0.001;
+    // analytical integral (box filter)
+    vec2 i = 2.0*(abs(fract((p-0.5*w)*0.5)-0.5)-abs(fract((p+0.5*w)*0.5)-0.5))/w;
+    // xor pattern
+    return 0.5 - 0.5*i.x*i.y;                  
 }
 
 
@@ -55,6 +27,7 @@ vec2 map( in vec3 pos )
     final = min(final, sdTorus(pos-vec3(0.5,0.1, -0.5), vec2(0.1, 0.025)));
     final = min(final, sdHexPrism(pos-vec3(0.5,0.1, 0.5), vec2(0.1, 0.025)));
     final = min(final, sdCapsule(pos-vec3(-0.5,0.1, 0.5), vec3(-0.1,0.05,-0.1), vec3(0.1,0.1,0.1), 0.05));
+    //final = min(final, udTriangle(vec3( 0.0,0.0, -1.0),vec3( 0.5,0.3, -1.2),vec3( 0.5,0.2, 0.0),pos-vec3( 0.0,0.1, -1.0)));
     return vec2( final, 40 ) ;
 } 
 
@@ -82,15 +55,7 @@ float calcAO( in vec3 pos, in vec3 nor )
     return clamp( 1.0 - 3.0*occ, 0.0, 1.0 ) * (0.5+0.5*nor.y);
 }
 
-float checkersGradBox( in vec2 p )
-{
-    // filter kernel
-    vec2 w = fwidth(p) + 0.001;
-    // analytical integral (box filter)
-    vec2 i = 2.0*(abs(fract((p-0.5*w)*0.5)-0.5)-abs(fract((p+0.5*w)*0.5)-0.5))/w;
-    // xor pattern
-    return 0.5 - 0.5*i.x*i.y;                  
-}
+
 
 const float maxHei = 0.8;
 #define ZERO (min(iFrame,0))

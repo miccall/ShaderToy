@@ -4,5 +4,11 @@
 			"path": "."
 		}
 	],
-	"settings": {}
+	"settings": {
+		"shader-toy.textures": {
+			"0": "file://./duck.png",
+			"1": "https://66.media.tumblr.com/tumblr_mcmeonhR1e1ridypxo1_500.jpg",
+			"2": "buf://./other/shader.glsl"
+		}
+	}
 }
